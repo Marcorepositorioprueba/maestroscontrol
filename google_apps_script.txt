@@ -1,0 +1,36 @@
+function doPost(e) {
+  try {
+    // IMPORTANTE: Asume que la hoja donde se guardan los datos se llama "Respuestas de formulario 1".
+    // Si tu hoja tiene otro nombre, cámbialo en la siguiente línea.
+    const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("Respuestas de formulario 1");
+
+    // Recoge los datos que enviará el formulario HTML
+    const nombreMaestro = e.parameter.nombreMaestro;
+    const horaEntrada = e.parameter.horaEntrada;
+    const horaSalida = e.parameter.horaSalida;
+    const fecha = e.parameter.fecha;
+    const gruposAtendidos = e.parameter.gruposAtendidos;
+
+    // Añade una nueva fila a la hoja de cálculo con los datos en el orden correcto.
+    // La primera columna (Marca de tiempo) la generamos aquí mismo.
+    sheet.appendRow([
+      new Date(),         // Columna A: Marca de tiempo
+      nombreMaestro,      // Columna B: Nombre del Maestro
+      horaEntrada,        // Columna C: Hora de Entrada
+      horaSalida,         // Columna D: Hora de Salida
+      fecha,              // Columna E: Fecha
+      gruposAtendidos     // Columna F: Grupos Atendidos
+    ]);
+
+    // Devuelve una respuesta de éxito al formulario para que sepa que todo salió bien.
+    return ContentService
+      .createTextOutput(JSON.stringify({ "status": "success" }))
+      .setMimeType(ContentService.MimeType.JSON);
+
+  } catch (error) {
+    // En caso de un error, lo registra y devuelve un mensaje de error.
+    return ContentService
+      .createTextOutput(JSON.stringify({ "status": "error", "message": error.message }))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+}
