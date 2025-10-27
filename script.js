@@ -3,7 +3,7 @@ document.addEventListener('DOMContentLoaded', function () {
     const messageDiv = document.getElementById('form-message');
     const submitButton = document.getElementById('submit-button');
     
-    const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzj5cSNcryQTPD1Yn1xAJE46tpNRPefmU5YsAld3vSQHJxgA_0et3i9iPr-ohgcvbVMGw/exec';
+    const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzI0Vkh-uJYCSHxoHaZKK-avM1arOXW0y6j2JerzFgmmU8LVs3hSm62bHuqBn5Lrqh8Cg/exec';
 
     form.addEventListener('submit', function (e) {
         e.preventDefault();
@@ -33,9 +33,7 @@ document.addEventListener('DOMContentLoaded', function () {
         // --- Formateo de Fecha para Google Sheets ---
         const fechaValue = form.querySelector('#fecha').value; // Formato: "YYYY-MM-DD"
         const parts = fechaValue.split('-'); // ["YYYY", "MM", "DD"]
-        // Se usa UTC para evitar problemas de zona horaria al crear el objeto Date
         const dateObj = new Date(Date.UTC(parts[0], parts[1] - 1, parts[2]));
-        // Formatear a DD/MM/YYYY, que es menos ambiguo para Sheets
         const formattedDate = `${String(dateObj.getUTCDate()).padStart(2, '0')}/${String(dateObj.getUTCMonth() + 1).padStart(2, '0')}/${dateObj.getUTCFullYear()}`;
 
         // --- Confirmación antes de enviar ---
@@ -47,14 +45,25 @@ document.addEventListener('DOMContentLoaded', function () {
         submitButton.disabled = true;
         submitButton.textContent = 'Enviando...';
 
-        const formData = new FormData(form);
-        // Sobrescribir la fecha con nuestro formato estandarizado
-        formData.set('fecha', formattedDate);
-        formData.append('gruposAtendidos', gruposAtendidosValue);
+        // Crear un objeto simple con los datos del formulario
+        const data = {
+            nombreMaestro: form.querySelector('#nombreMaestro').value,
+            horaEntrada: horaEntrada, // Ya la tenemos de la validación
+            horaSalida: horaSalida,   // Ya la tenemos de la validación
+            fecha: formattedDate,     // Ya la tenemos formateada
+            gruposAtendidos: gruposAtendidosValue // Ya lo tenemos de la lógica de checkboxes
+        };
 
+        // Enviar los datos como un string de texto plano (JSON).
+        // Esto evita la solicitud de "pre-vuelo" (preflight) de CORS.
         fetch(SCRIPT_URL, {
             method: 'POST',
-            body: formData
+            mode: 'cors',
+            cache: 'no-cache',
+            headers: {
+                'Content-Type': 'text/plain;charset=utf-8'
+            },
+            body: JSON.stringify(data)
         })
         .then(response => response.json())
         .then(data => {
