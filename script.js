@@ -3,7 +3,7 @@ document.addEventListener('DOMContentLoaded', function () {
     const messageDiv = document.getElementById('form-message');
     const submitButton = document.getElementById('submit-button');
     
-    const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzI0Vkh-uJYCSHxoHaZKK-avM1arOXW0y6j2JerzFgmmU8LVs3hSm62bHuqBn5Lrqh8Cg/exec';
+    const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzfbA5oFHSVjGskn5b4ELeSfQLBuvv7kjrtRWinWB7P6FTRBdjSmRKmoEugaKHynUPB/exec';
 
     form.addEventListener('submit', function (e) {
         e.preventDefault();
