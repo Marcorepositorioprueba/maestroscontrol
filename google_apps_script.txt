@@ -22,15 +22,30 @@ function doPost(e) {
       gruposAtendidos     // Columna F: Grupos Atendidos
     ]);
 
-    // Devuelve una respuesta de éxito al formulario para que sepa que todo salió bien.
+    // Devuelve una respuesta de éxito al formulario con cabecera CORS
     return ContentService
       .createTextOutput(JSON.stringify({ "status": "success" }))
-      .setMimeType(ContentService.MimeType.JSON);
+      .setMimeType(ContentService.MimeType.JSON)
+      .withHeaders({'Access-Control-Allow-Origin': '*'});
 
   } catch (error) {
-    // En caso de un error, lo registra y devuelve un mensaje de error.
+    // En caso de un error, lo registra y devuelve un mensaje de error con cabecera CORS
     return ContentService
       .createTextOutput(JSON.stringify({ "status": "error", "message": error.message }))
-      .setMimeType(ContentService.MimeType.JSON);
+      .setMimeType(ContentService.MimeType.JSON)
+      .withHeaders({'Access-Control-Allow-Origin': '*'});
   }
+}
+
+// Google Apps Script necesita una función doOptions para manejar las solicitudes de "pre-vuelo" (preflight) de CORS.
+// Esto es necesario para las solicitudes POST complejas que envían los navegadores modernos.
+function doOptions(e) {
+  return ContentService
+    .createTextOutput()
+    .setMimeType(ContentService.MimeType.JSON)
+    .withHeaders({
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'POST, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type'
+    });
 }
