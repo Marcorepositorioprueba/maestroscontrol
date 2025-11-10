@@ -5,15 +5,95 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Centro de Mando - Control de Horas</title>
     <style>
-        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background-color: #f0f2f5; margin: 0; display: flex; justify-content: center; align-items: center; height: 100vh; }
-        .container { text-align: center; background: #fff; padding: 50px; border-radius: 12px; box-shadow: 0 5px 15px rgba(0,0,0,0.1); }
-        #logo { max-width: 150px; margin-bottom: 30px; }
-        h1 { color: #333; margin-bottom: 40px; }
-        .button-container { display: flex; flex-direction: column; gap: 20px; }
-        .button { display: block; padding: 20px 30px; text-decoration: none; color: white; font-size: 18px; font-weight: 600; border-radius: 8px; transition: transform 0.2s, box-shadow 0.2s; }
-        .button:hover { transform: translateY(-3px); box-shadow: 0 4px 10px rgba(0,0,0,0.2); }
-        .sheet-button { background-color: #00796b; } /* Verde */
-        .report-button { background-color: #0288d1; } /* Azul */
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: #f0f2f5;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            min-height: 100vh;
+        }
+        .container {
+            width: 100%;
+            max-width: 800px;
+            background: #fff;
+            padding: 40px;
+            border-radius: 12px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+            text-align: center;
+        }
+        #logo {
+            max-width: 120px;
+            margin-bottom: 20px;
+        }
+        h1 {
+            color: #333;
+            margin-bottom: 30px;
+        }
+        .control-panel {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 15px;
+            margin-bottom: 30px;
+            flex-wrap: wrap;
+        }
+        .control-panel label {
+            font-weight: 600;
+            color: #555;
+        }
+        .control-panel input[type="date"] {
+            padding: 8px;
+            border: 1px solid #ccc;
+            border-radius: 6px;
+            font-size: 16px;
+        }
+        .button {
+            padding: 12px 25px;
+            text-decoration: none;
+            color: white;
+            font-size: 16px;
+            font-weight: 600;
+            border-radius: 8px;
+            border: none;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 10px rgba(0,0,0,0.15);
+        }
+        .calculate-button {
+            background-color: #00796b; /* Verde */
+        }
+        #resultsContainer {
+            margin-top: 20px;
+            text-align: left;
+        }
+        #loading {
+            display: none;
+            font-size: 18px;
+            color: #0288d1;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 12px;
+            text-align: left;
+        }
+        th {
+            background-color: #f7f7f7;
+            font-weight: 700;
+        }
+        tr:nth-child(even) {
+            background-color: #f9f9f9;
+        }
     </style>
 </head>
 <body>
@@ -21,11 +101,147 @@
     <div class="container">
         <img id="logo" src="escudo1.png" alt="Logo">
         <h1>Centro de Mando: Control de Horas</h1>
-        <div class="button-container">
-            <a href="https://docs.google.com/spreadsheets/d/1w-my16qnub-wdHb_Mnz00VEz0BPcs_z9dm_bocuvris/edit" target="_blank" class="button sheet-button">Ir al Registro de Horas (Google Sheet)</a>
-            <a href="https://lookerstudio.google.com/s/kHq0ST2TN3E" target="_blank" class="button report-button">Ver Reporte Interactivo (Looker Studio)</a>
+
+        <div class="control-panel">
+            <label for="dateStart">Desde:</label>
+            <input type="date" id="dateStart">
+            <label for="dateEnd">Hasta:</label>
+            <input type="date" id="dateEnd">
+            <button id="calculateBtn" class="button calculate-button">Calcular Horas</button>
         </div>
+        
+        <div id="loading">Calculando...</div>
+        <div id="resultsContainer"></div>
     </div>
+
+    <script>
+        const CSV_URL = '/get_csv';
+
+        const dateStartInput = document.getElementById('dateStart');
+        const dateEndInput = document.getElementById('dateEnd');
+        const calculateBtn = document.getElementById('calculateBtn');
+        const resultsContainer = document.getElementById('resultsContainer');
+        const loadingDiv = document.getElementById('loading');
+
+        // Set default dates
+        const today = new Date();
+        const firstDayOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+        dateEndInput.value = today.toISOString().split('T')[0];
+        dateStartInput.value = firstDayOfMonth.toISOString().split('T')[0];
+
+        calculateBtn.addEventListener('click', calculateHours);
+
+        async function calculateHours() {
+            loadingDiv.style.display = 'block';
+            resultsContainer.innerHTML = '';
+
+            // To avoid timezone issues, we'll work with UTC dates.
+            const startDate = new Date(dateStartInput.value + 'T00:00:00Z');
+            const endDate = new Date(dateEndInput.value + 'T00:00:00Z');
+
+            if (isNaN(startDate) || isNaN(endDate)) {
+                alert('Por favor, selecciona fechas válidas.');
+                loadingDiv.style.display = 'none';
+                return;
+            }
+
+            try {
+                const response = await fetch(CSV_URL, { cache: 'no-store' }); // Avoid caching issues
+                const csvData = await response.text();
+                const teacherHours = processData(csvData, startDate, endDate);
+                displayResults(teacherHours);
+            } catch (error) {
+                console.error('Error al cargar o procesar los datos:', error);
+                alert('Hubo un error al cargar los datos desde Google Sheets.');
+            } finally {
+                loadingDiv.style.display = 'none';
+            }
+        }
+
+        function processData(csvData, startDate, endDate) {
+            const teacherHours = {};
+            const lines = csvData.split('\n').map(line => line.trim());
+            const headers = lines[0].split(',').map(h => h.trim());
+
+            const nameIndex = headers.indexOf('Nombre del Maestro:');
+            const startTimeIndex = headers.indexOf('Hora de Entrada:');
+            const endTimeIndex = headers.indexOf('Hora de salida:');
+            const dateIndex = headers.indexOf('Fecha:');
+
+            if (nameIndex === -1 || startTimeIndex === -1 || endTimeIndex === -1 || dateIndex === -1) {
+                alert('No se pudieron encontrar las columnas necesarias en el archivo CSV. Verifica que los nombres sean correctos: "Nombre del Maestro:", "Hora de Entrada:", "Hora de salida:", "Fecha:"');
+                return {};
+            }
+
+            for (let i = 1; i < lines.length; i++) {
+                const values = lines[i].split(',');
+                if (values.length < headers.length) continue;
+
+                const recordDateStr = values[dateIndex].trim();
+                if (!recordDateStr) continue;
+                
+                // Consistently parse the date as UTC to match the start/end dates
+                const recordDate = new Date(recordDateStr + 'T00:00:00Z');
+
+                if (isNaN(recordDate)) continue; // Skip invalid date rows
+
+                if (recordDate >= startDate && recordDate <= endDate) {
+                    const teacherName = values[nameIndex].trim();
+                    const startTimeStr = values[startTimeIndex].trim();
+                    const endTimeStr = values[endTimeIndex].trim();
+
+                    if (teacherName && startTimeStr && endTimeStr) {
+                        // Use a fixed date to parse time, avoiding timezone issues
+                        const start = new Date(`1970-01-01T${startTimeStr}`);
+                        const end = new Date(`1970-01-01T${endTimeStr}`);
+                        
+                        if (!isNaN(start) && !isNaN(end) && end > start) {
+                            const durationHours = (end - start) / (1000 * 60 * 60);
+                            if (!teacherHours[teacherName]) {
+                                teacherHours[teacherName] = 0;
+                            }
+                            teacherHours[teacherName] += durationHours;
+                        }
+                    }
+                }
+            }
+            return teacherHours;
+        }
+
+        function displayResults(teacherHours) {
+            if (Object.keys(teacherHours).length === 0) {
+                resultsContainer.innerHTML = '<p>No se encontraron registros en el período seleccionado.</p>';
+                return;
+            }
+
+            const table = document.createElement('table');
+            const thead = document.createElement('thead');
+            const tbody = document.createElement('tbody');
+
+            thead.innerHTML = `
+                <tr>
+                    <th>Nombre del Maestro</th>
+                    <th>Horas Totales Calculadas</th>
+                </tr>
+            `;
+
+            const sortedTeachers = Object.keys(teacherHours).sort();
+
+            for (const teacher of sortedTeachers) {
+                const row = document.createElement('tr');
+                const totalHours = teacherHours[teacher].toFixed(2);
+                row.innerHTML = `
+                    <td>${teacher}</td>
+                    <td>${totalHours}</td>
+                `;
+                tbody.appendChild(row);
+            }
+
+            table.appendChild(thead);
+            table.appendChild(tbody);
+            resultsContainer.appendChild(table);
+        }
+    </script>
 
 </body>
 </html>

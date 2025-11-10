@@ -1,88 +1,93 @@
-document.addEventListener('DOMContentLoaded', function () {
+/**
+ * Maneja el envío del formulario de registro de horas a un Google Apps Script.
+ * VERSIÓN FINAL: Corregido el formato de fecha para máxima compatibilidad.
+ */
+document.addEventListener('DOMContentLoaded', () => {
     const form = document.getElementById('registro-form');
     const messageDiv = document.getElementById('form-message');
     const submitButton = document.getElementById('submit-button');
-    
-    const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzfbA5oFHSVjGskn5b4ELeSfQLBuvv7kjrtRWinWB7P6FTRBdjSmRKmoEugaKHynUPB/exec';
 
-    form.addEventListener('submit', function (e) {
+    const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzHy5Sm3vikStH6HWaGJEIPBC1ksX5FiqDI-0M8Qqyxu68jgBYPI7TyjOtAsKTklJwnCw/exec';
+
+    form.addEventListener('submit', (e) => {
         e.preventDefault();
-        messageDiv.style.display = 'none'; // Ocultar mensajes previos
 
-        // --- Validación de Horas ---
+        // 1. --- VALIDACIÓN DE DATOS ---
         const horaEntrada = form.querySelector('#horaEntrada').value;
         const horaSalida = form.querySelector('#horaSalida').value;
+        const checkedGroups = form.querySelectorAll('input[name="grupos"]:checked');
 
         if (horaSalida <= horaEntrada) {
-            messageDiv.textContent = 'La hora de salida debe ser posterior a la hora de entrada.';
-            messageDiv.className = 'error';
-            messageDiv.style.display = 'block';
-            return; // Detiene el envío
+            showMessage('La hora de salida debe ser posterior a la hora de entrada.', 'error');
+            return;
         }
 
-        // --- Lógica para los checkboxes ---
-        const checkedGroups = form.querySelectorAll('input[name="grupos"]:checked');
         if (checkedGroups.length === 0) {
-            messageDiv.textContent = 'Por favor, seleccione al menos un grupo.';
-            messageDiv.className = 'error';
-            messageDiv.style.display = 'block';
-            return; // Detiene el envío si no se seleccionó ningún grupo
+            showMessage('Por favor, seleccione al menos un grupo atendido.', 'error');
+            return;
         }
-        const gruposAtendidosValue = Array.from(checkedGroups).map(cb => cb.value).join(', ');
         
-        // --- Formateo de Fecha para Google Sheets ---
-        const fechaValue = form.querySelector('#fecha').value; // Formato: "YYYY-MM-DD"
-        const parts = fechaValue.split('-'); // ["YYYY", "MM", "DD"]
-        const dateObj = new Date(Date.UTC(parts[0], parts[1] - 1, parts[2]));
-        const formattedDate = `${String(dateObj.getUTCDate()).padStart(2, '0')}/${String(dateObj.getUTCMonth() + 1).padStart(2, '0')}/${dateObj.getUTCFullYear()}`;
-
-        // --- Confirmación antes de enviar ---
-        if (!confirm('¿Estás seguro de que deseas enviar este registro?')) {
-            return; // El usuario canceló el envío
+        if (!confirm('¿Confirmas que los datos son correctos para el registro?')) {
+            return;
         }
 
-        // --- Proceso de Envío ---
-        submitButton.disabled = true;
-        submitButton.textContent = 'Enviando...';
+        // 2. --- PREPARACIÓN DE DATOS ---
+        setLoadingState(true);
 
-        // Crear un objeto simple con los datos del formulario
-        const data = {
+        const gruposValue = Array.from(checkedGroups).map(cb => cb.value).join(', ');
+
+        // Crear el objeto de datos que se enviará.
+        // Los nombres de las propiedades coinciden EXACTAMENTE con lo que espera el Google Apps Script.
+        const dataPayload = {
             nombreMaestro: form.querySelector('#nombreMaestro').value,
-            horaEntrada: horaEntrada, // Ya la tenemos de la validación
-            horaSalida: horaSalida,   // Ya la tenemos de la validación
-            fecha: formattedDate,     // Ya la tenemos formateada
-            gruposAtendidos: gruposAtendidosValue // Ya lo tenemos de la lógica de checkboxes
+            horaEntrada: horaEntrada,
+            horaSalida: horaSalida,
+            // LA CORRECCIÓN CLAVE ESTÁ AQUÍ:
+            // Se envía la fecha directamente en formato YYYY-MM-DD. Es universal y evita errores de región.
+            fecha: form.querySelector('#fecha').value,
+            gruposAtendidos: gruposValue 
         };
 
-        // Enviar los datos como un string de texto plano (JSON).
-        // Esto evita la solicitud de "pre-vuelo" (preflight) de CORS.
+        // 3. --- ENVÍO DE DATOS (FETCH) ---
         fetch(SCRIPT_URL, {
             method: 'POST',
             mode: 'cors',
             cache: 'no-cache',
             headers: {
-                'Content-Type': 'text/plain;charset=utf-8'
+                'Content-Type': 'text/plain;charset=utf-8',
             },
-            body: JSON.stringify(data)
+            body: JSON.stringify(dataPayload)
         })
         .then(response => response.json())
-        .then(data => {
-            if (data.status === 'success') {
-                messageDiv.textContent = '¡Registro guardado con éxito!';
-                messageDiv.className = 'success';
-                form.reset();
-            } else {
-                throw new Error(data.message || 'Ocurrió un error desconocido.');
-            }
-        })
-        .catch(error => {
-            messageDiv.textContent = `Error al enviar el registro: ${error.message}`;
-            messageDiv.className = 'error';
-        })
+        .then(handleResponse)
+        .catch(handleError)
         .finally(() => {
-            messageDiv.style.display = 'block';
-            submitButton.disabled = false;
-            submitButton.textContent = 'Registrar Jornada';
+            setLoadingState(false);
         });
     });
+
+    function setLoadingState(isLoading) {
+        submitButton.disabled = isLoading;
+        submitButton.textContent = isLoading ? 'Enviando...' : 'Registrar Jornada';
+    }
+
+    function showMessage(message, type) {
+        messageDiv.textContent = message;
+        messageDiv.className = type;
+        messageDiv.style.display = 'block';
+    }
+
+    function handleResponse(data) {
+        if (data.status === 'success') {
+            showMessage('¡Registro guardado con éxito!', 'success');
+            form.reset();
+        } else {
+            throw new Error(data.message || 'El script de Google devolvió un error.');
+        }
+    }
+
+    function handleError(error) {
+        showMessage(`Error al enviar el registro: ${error.message}`, 'error');
+        console.error('Error en el fetch:', error);
+    }
 });

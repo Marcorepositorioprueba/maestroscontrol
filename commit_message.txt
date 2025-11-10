@@ -1,1 +1,0 @@
-fix(backend): Add CORS headers to Google Apps Script
